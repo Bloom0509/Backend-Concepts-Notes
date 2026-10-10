@@ -1,6 +1,6 @@
 # Backend Engineering Notes
 
-## 23. Quick Reference Tables
+## Quick Reference Tables
 
 ### HTTP Methods
 
