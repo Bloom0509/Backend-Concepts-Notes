@@ -415,3 +415,112 @@ Repositories can be copied, indexed, or shared. Exposed secrets may grant unauth
 - [ ] Describe safe shutdown and dependency-failure handling.
 - [ ] Compare unit, integration, and end-to-end tests.
 - [ ] Explain how a change moves through CI/CD to deployment.
+
+
+## 26. Input Validation, Transformation, and Normalization
+
+Validation checks whether incoming data is acceptable before it reaches business logic or storage. A robust backend validates untrusted input on the server, returns clear and consistent errors, and avoids processing invalid requests.
+
+### Types of Validation
+
+| Validation type | What it checks | Example |
+|---|---|---|
+| Type validation | Whether a value has the expected data type | `age` is an integer, `tags` is an array, `profile` is an object |
+| Required / presence validation | Whether a required field exists and is not missing | `email` must be supplied |
+| Syntactic / format validation | Whether a value follows a required format or pattern | Email syntax, phone-number format, ISO date format |
+| Semantic validation | Whether the value makes sense in the domain | Date of birth is not in the future; age is between 1 and 120 |
+| Length validation | Minimum or maximum string/array length | Username is 3–30 characters |
+| Range / boundary validation | Whether a number or date falls within allowed bounds | Quantity is between 1 and 100 |
+| Enum / allowlist validation | Whether a value is one of the supported options | Status is `pending`, `active`, or `disabled` |
+| Cross-field validation | Whether multiple fields are valid together | End date must be after start date |
+| Business-rule validation | Whether data satisfies application-specific rules | A discount cannot exceed the permitted limit |
+| Uniqueness validation | Whether a value must be unique | Email address is not already registered |
+| Referential / existence validation | Whether a referenced record exists and can be used | `customer_id` refers to an existing customer |
+| Collection validation | Whether each item and the collection itself are valid | Array contains no duplicates and has at most 50 items |
+| File validation | Whether an uploaded file meets content and size requirements | Allowed file type, size limit, and safe content checks |
+| Security validation | Whether input is handled safely for its intended use | Parameterized SQL, safe output encoding, allowlisted sort fields |
+
+**Important distinction:** format validation checks the shape of data; semantic validation checks whether that data is meaningful. A string can match a date pattern and still represent an impossible date, such as a nonexistent day in a month.
+
+### Examples
+
+- **Syntactic:** `person@example.com` resembles an email address; a phone number follows the accepted format; a date uses the expected format.
+- **Semantic:** date of birth cannot be in the future; age must be within the application's accepted range (for example, 1–120); a booking end time must be after its start time.
+- **Type:** `age` must be an integer, `is_active` a boolean, `items` an array, and `address` an object.
+- **Required:** reject a request if a mandatory field is missing.
+- **Range:** reject a page size that is negative or exceeds the configured maximum.
+- **Cross-field:** require a confirmation field to match the original value, or require `end_date > start_date`.
+- **Uniqueness:** check whether an email is already registered; enforce uniqueness in the database too to handle concurrent requests.
+- **Referential:** verify a supplied product or customer ID exists and that the caller is allowed to reference it.
+
+### Client-Side vs Server-Side Validation
+
+| Aspect | Client-side validation | Server-side validation |
+|---|---|---|
+| Main purpose | Fast feedback and better user experience | Protects business logic, data integrity, and system boundaries |
+| Where it runs | Browser or client application | Backend/API |
+| Can it be bypassed? | Yes; clients can be modified or requests sent directly | It is the authoritative validation boundary |
+| Examples | Required-field messages, immediate format feedback | Revalidate types, permissions, formats, and business rules before processing |
+| Should it be used? | Yes, for usability | Always for untrusted input |
+
+Keep frontend and backend rules consistent where practical so users do not see contradictory results. However, never trust frontend validation as a security control: every request must be validated by the backend.
+
+### Transformation
+
+Transformation converts incoming values into the representation expected by the application. It is not the same as validation: after converting a value, verify that the result is valid.
+
+Examples:
+- Convert a path or query parameter such as `"42"` into an integer ID.
+- Parse a date string into a date/time object using an explicitly supported format.
+- Convert a numeric string into a number only if it is valid and within allowed bounds.
+- Parse JSON into structured data and reject malformed payloads.
+
+Avoid permissive conversions that silently turn invalid input into an unexpected value. Be explicit about accepted formats, time zones, numeric precision, and overflow behavior.
+
+### Normalization
+
+Normalization converts equivalent inputs into a consistent representation before comparison or storage, according to the field's rules.
+
+Examples:
+- Trim leading and trailing whitespace from a name or email address where appropriate.
+- Normalize email casing for case-insensitive account matching, while recognizing that email address rules can be nuanced.
+- Normalize phone numbers to a consistent international representation after parsing and validating them.
+- Store timestamps consistently, commonly in UTC, and handle display time zones separately.
+- Normalize Unicode or whitespace where the product's requirements call for it.
+
+Do not normalize blindly: preserve meaningful user input, and define field-specific rules. Normalization does not prove that a value is valid.
+
+### A Practical Validation Pipeline
+
+1. **Parse the request** and reject malformed JSON or unsupported content types.
+2. **Check the schema and types:** required fields, object/array shape, primitive types, and unknown fields according to the API contract.
+3. **Transform values:** parse IDs, numbers, and dates using explicit rules.
+4. **Normalize values:** trim or canonicalize fields where appropriate.
+5. **Validate syntax and constraints:** formats, lengths, ranges, enums, and collection limits.
+6. **Validate semantic and cross-field rules:** date logic, field relationships, and business constraints.
+7. **Check state-dependent rules:** record existence, uniqueness, current status, and permissions. Use database constraints and transactions where needed to handle race conditions.
+8. **Only then run the main business operation** and persist changes.
+9. **Return consistent errors** that identify the invalid field and explain the expected value without exposing internals or sensitive data.
+
+The exact order can vary by framework and application, but cheap checks should generally happen early and expensive work should happen only after basic validation passes.
+
+### Validation Best Practices
+
+- **Fail fast:** return early when a request is clearly invalid; avoid unnecessary database calls or expensive processing.
+- **Validate on the server:** client checks are for user experience, not a substitute for backend checks.
+- **Use allowlists:** constrain fields such as sort keys, statuses, and supported formats to known values.
+- **Keep errors consistent:** use a predictable response shape, field-level messages, and suitable HTTP status codes (often 400 or 422, depending on the API contract).
+- **Do not leak internals:** do not return stack traces, SQL details, secrets, or sensitive personal data in validation errors.
+- **Protect data integrity at the database layer:** use NOT NULL, CHECK, UNIQUE, and foreign-key constraints when appropriate; application validation alone cannot prevent all concurrent-write races.
+- **Validate authorization as well as shape:** a valid ID does not mean the caller is allowed to access that resource.
+- **Set limits:** constrain request body size, string/array lengths, pagination sizes, and uploaded file sizes to reduce abuse.
+- **Share schemas carefully:** reuse compatible validation rules across frontend and backend where useful, but retain authoritative backend checks.
+- **Test edge cases:** missing fields, null values, wrong types, empty strings, malformed formats, boundaries, impossible dates, duplicate values, and unauthorized resource references.
+
+### Validation vs Transformation vs Normalization
+
+| Operation | Question answered | Example |
+|---|---|---|
+| Validation | Is this input acceptable? | Is the age an integer between 1 and 120? |
+| Transformation | Can this input be converted to the expected representation? | Convert path parameter `"42"` to integer `42` |
+| Normalization | Can equivalent input forms be represented consistently? | Trim surrounding whitespace before comparing a field |
