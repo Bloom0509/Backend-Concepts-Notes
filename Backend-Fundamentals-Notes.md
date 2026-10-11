@@ -55,7 +55,7 @@ The frontend is responsible for the user experience. The backend is responsible 
 
 ## 2. How Does a Deployed Backend Request Travel?
 
-The video demonstrates a backend deployed on AWS EC2. The example below shows one possible deployment path; real systems may use a CDN, load balancer, API gateway, container platform, or managed application service.
+The backend deployed on AWS EC2. The example below shows one possible deployment path; real systems may use a CDN, load balancer, API gateway, container platform, or managed application service.
 
 | Step | Component | What it does | Example / troubleshooting clue |
 |---:|---|---|---|
